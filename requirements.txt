@@ -1,0 +1,29 @@
+# Python dependencies for Wake and Break.
+#
+#   python3 -m venv venv
+#   venv/bin/pip install -r requirements.txt
+#
+# tinygrad supplies the AM driver that opens the card (Device["AMD"]) and the
+# PSP/SMU register definitions this imports from
+# tinygrad.runtime.autogen.am.am. 0.14.0 is the version the plant was proven
+# against; newer releases have moved these internals before.
+#
+# If the card hangs off tinygrad's USB bridge rather than PCIe, install
+# tinygrad from the working tree that drives your bridge instead:
+#   venv/bin/pip install -e /path/to/tinygrad
+#
+# That tree also needs the PSP ring-wptr wrap fix: stock _ring_submit advances
+# the KM ring wptr without wrapping, so after ~1024 submissions the frame is
+# written past the end of the ring and the fence stops advancing ("sOS ring not
+# responding"). One plant is 150-odd submissions, so an unpatched tinygrad
+# stalls after a handful of runs in one boot. Check with:
+#   python -c "import inspect;from tinygrad.runtime.support.am.ip import AM_PSP;\
+#   print('wrap fix:', 'ring_size' in inspect.getsource(AM_PSP._ring_submit))"
+tinygrad==0.14.0
+
+# AES-CMAC for the FE09 half of the GCP handshake.
+pycryptodome>=3.20
+
+# tinygrad's USB transport (Device["AMD"] over a USB bridge). Harmless on a
+# PCIe-attached card.
+pyusb>=1.2
