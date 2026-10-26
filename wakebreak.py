@@ -558,9 +558,10 @@ def boot(adev):
     # the GPU until it is power cycled; on a natively attached card that wedge
     # can hang the host. tinygrad's own AMDev.__init__ does the same before its
     # reset, but we drive this one ourselves.
-    adev.gfx.fini_hw()
-    adev.gfx.halt_engines()
-    adev.sdma.halt_engines()
+    for ip, meth in ((adev.gfx, "fini_hw"), (adev.gfx, "halt_engines"),
+                     (adev.sdma, "halt_engines")):
+        if callable(fn := getattr(ip, meth, None)):
+            fn()  # older tinygrad has no halt_engines; fini_hw alone still helps
     time.sleep(0.1)
     # navi31's SMU begins the mode-1 reset immediately and never writes the ack
     # tinygrad's mode1_reset() waits for, so that wait always times out -- after
