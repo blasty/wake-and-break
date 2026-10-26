@@ -42,7 +42,7 @@ IDEFS_sosb := --defsym SOS_SITE=0x9b48 --defsym SOS_CAVE=0x12cd8
 IBASE_sosc := 0x1a024
 IDEFS_sosc := --defsym SOS_SITE=0x99ac --defsym SOS_CAVE=0x12ab8 \
               --defsym BRANCH_TO_CAVE=0xb884f009 \
-              --defsym PAYLOAD_SOURCE=0x1968c --defsym TAIL_ORG=0x110
+              --defsym PAYLOAD_SOURCE=0x1968c --defsym TAIL_ORG=0x130
 IBASE_sosd := 0x1a104
 IDEFS_sosd := --defsym SOS_SITE=0x9c80 --defsym SOS_CAVE=0x132a4 \
               --defsym BRANCH_TO_CAVE=0xbb10f009 \
@@ -70,7 +70,7 @@ PDEFS_sosd := --defsym SOS_SITE=0x9c80 --defsym SOS_UNMAP=0x1136c \
 # never run on hardware and these pins only freeze what this toolchain produced.
 SHA_installer.bin  := 6365d11439dacffe5a1e9d5ead097359c8d8f90b182e6d198d639d15adeb6fac
 SHA_installer_sosb.bin := 6b43a487209368da8ffc20401156e4c5d4879305d8bdd695ca2544c74815d94e
-SHA_installer_sosc.bin := 94de0fa2427401aa16c99d68a2123421cdd9f825c95de78eb9e2ce5d9cd3b963
+SHA_installer_sosc.bin := 8ff7a494454e95452083318a6b287620e732da6896c24fbccf3f0c8ac1fd81b2
 SHA_installer_sosd.bin := 37cc6ded72379e6dc9a8891022c2e6fa0d151a02d5f7435272de84b6f2ea49de
 SHA_source_ipfw.bin := 448ebe3ab89c4af8f9a443097cdb26f48ff986947331ec31a1bed5fcb329fc53
 SHA_source_ipfw_sosb.bin := 06804c7629a427a3e3fc54f343e8af1ce3ea6c28ef43be11563c6b65c96ba3e1
@@ -86,7 +86,7 @@ SHA_ta_22-0-0-77_7c426e7f.bin := 933aa88e53e4f80efa152a82ac6be7abecd6ab15c0fda6f
 # the 32-byte helper and 44-byte tail inside them are ever written.
 SIZE_installer.bin := 336
 SIZE_installer_sosb.bin := 336
-SIZE_installer_sosc.bin := 316
+SIZE_installer_sosc.bin := 348
 SIZE_installer_sosd.bin := 204
 SIZE_source_ipfw.bin := 184
 SIZE_source_ipfw_sosb.bin := 184

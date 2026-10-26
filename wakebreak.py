@@ -14,6 +14,7 @@ means cold ATX before the next PSP request.
 
 import argparse
 import hashlib
+import time
 from pathlib import Path
 from struct import pack_into, unpack_from
 
@@ -62,9 +63,9 @@ PROFILES = {
     # BL 294ec7b1 + sOS f796ac5e, 21 ROMs. Hooked BL is a halfword earlier and
     # dword-aligned, so site dword 2 is rewritten with its own stock value.
     "c": dict(stock="source_stock_sosc.bin", blob="_sosc", source=0x1968C, helper=0x1A024,
-              tail=0x1A134, site=(0x1874C, 0x18750), sos_site=0x99AC,
+              tail=0x1A154, site=(0x1874C, 0x18750), sos_site=0x99AC,
               stock_site=(0xFA8AF7FF, 0xF7FF4620), sos_cave=0x12AB8,
-              patch_site=(0xFCF2F001, 0xF7FF4620)),
+              patch_site=(0xFD02F001, 0xF7FF4620)),
     # BL 46f0c343 + sOS 7b395f4d, 3 ROMs
     "d": dict(stock="source_stock_sosd.bin", blob="_sosd", source=0x19780, helper=0x1A104,
               tail=0x1A1A4, site=(0x187B8, 0x187BC), sos_site=0x9C80,
@@ -109,6 +110,24 @@ class Profile:
         assert len(self.helper) == 32 and len(self.tail) == 44, "installer is short"
         assert self.helper[14:16] == bytes((len(self.source), 0x22)), (
             "the helper's `movs r2,#184` copy length does not match the hook blob"
+        )
+        # The redirect words must encode a branch into THIS profile's tail cave.
+        # Moving a cave without recomputing them lands the bootloader in dead
+        # space, which only shows up as a dead PSP after the warm boot.
+        patch = b"".join(w.to_bytes(4, "little") for w in self.patch_site)
+        target = None
+        for off in (0, 2, 4):
+            hw1, hw2 = unpack_from("<HH", patch, off)
+            if (hw1 & 0xF800) != 0xF000 or (hw2 & 0xD000) != 0xD000:
+                continue
+            s_, j1, j2 = (hw1 >> 10) & 1, (hw2 >> 13) & 1, (hw2 >> 11) & 1
+            i1, i2 = (~(j1 ^ s_)) & 1, (~(j2 ^ s_)) & 1
+            imm = (s_ << 24) | (i1 << 23) | (i2 << 22) | ((hw1 & 0x3FF) << 12) | ((hw2 & 0x7FF) << 1)
+            target = self.site[0] + off + 4 + (imm - (1 << 25) if s_ else imm)
+            break
+        assert target == self.tail_cpu, (
+            f"sos-build {name}: redirect branches to {target:#x}, not the tail cave "
+            f"at {self.tail_cpu:#x}"
         )
         # Generation binding: a blob built for another profile cannot pass.
         assert unpack_from("<4I", self.tail, 24) == (
@@ -507,10 +526,10 @@ def boot(adev):
     """Mode-1 reset, then the full-boot arm of AMDev.__init__ re-run against
     the live object. The PSP reloads its components on the way up, which is
     when the planted bootloader hook fires."""
+    from tinygrad.helpers import wait_cond
     from tinygrad.runtime.autogen import pci
     from tinygrad.runtime.support.am.ip import AM_PSP, AM_SMU
 
-    original_reset = AM_SMU.mode1_reset
     resets = [0]
 
     def reset(self):
@@ -518,7 +537,12 @@ def boot(adev):
         if (resets[0] != 1 or self.adev.rreg(0x16C // 4) != 0
                 or self.adev.rreg(0x582CC // 4) != 0x80000000):
             raise RuntimeError("mode-1 precondition failed; cold ATX, no requests")
-        return original_reset(self)
+        # Fire the reset, then touch nothing but config space until the device
+        # answers again. See the note at the call site.
+        self._smu_cmn_send_msg(2, 0, debug=True)
+        time.sleep(0.5)
+        wait_cond(self.adev.pci_dev.read_config, 0, 2, value=0x1002, timeout_ms=5000,
+                  msg="gpu did not return from mode1 reset; power cycle required")
 
     # Hooked last: tinygrad may have reset the card while opening it, and that
     # one is stock, unhooked and must not spend our one shot.
@@ -530,7 +554,22 @@ def boot(adev):
     command = adev.pci_dev.read_config(pci.PCI_COMMAND, 2)
     adev.is_booting = True
     adev.pci_dev.write_config_flush(pci.PCI_COMMAND, command & ~pci.PCI_COMMAND_MASTER, 2)
+    # Quiesce first. A mode-1 reset over live engines at max clocks can wedge
+    # the GPU until it is power cycled; on a natively attached card that wedge
+    # can hang the host. tinygrad's own AMDev.__init__ does the same before its
+    # reset, but we drive this one ourselves.
+    adev.gfx.fini_hw()
+    adev.gfx.halt_engines()
+    adev.sdma.halt_engines()
+    time.sleep(0.1)
+    # navi31's SMU begins the mode-1 reset immediately and never writes the ack
+    # tinygrad's mode1_reset() waits for, so that wait always times out -- after
+    # polling MMIO for 10s against a GPU that is already resetting, which on a
+    # natively attached card can hang the host on root-port completion timeouts.
+    # Send the debug-mailbox message ourselves and gate on config space, which
+    # fails fast, exactly as tinygrad's own post-reset check does.
     adev.smu.mode1_reset()
+    say("  mode-1 issued, waiting for the link")
     adev.pci_dev.write_config_flush(pci.PCI_COMMAND, command | pci.PCI_COMMAND_MASTER, 2)
     adev.init_hw(adev.soc, adev.gmc, adev.ih, adev.psp, adev.smu)
     adev.is_booting = False

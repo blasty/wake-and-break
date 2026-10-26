@@ -76,15 +76,25 @@ python3 wakebreak.py --sos-build c 25=/tmp/fw_25_bad.bin
 
 ## Status
 
-Confirmed on the tested card (RX 7900 XTX, profile `a`):
+Confirmed on two different cards and firmware builds:
 
-|                               |                                |
-| ----------------------------- | ------------------------------ |
-| tampered firmware, stock card | rejected                       |
-| tampered firmware, patched    | **accepted**                   |
-| after cold power cycle        | rejected again — card is stock |
+|                               | profile `a`    | profile `c`    |
+| ----------------------------- | -------------- | -------------- |
+| tampered firmware, stock card | rejected       | rejected       |
+| tampered firmware, patched    | **accepted**   | **accepted**   |
+| after cold power cycle        | rejected again | rejected again |
 
-**NOTE**: Profiles `b`, `c` and `d` are built and checked offline but have never run on hardware. If you have a card that matches profile, `b`, `c` or `d` please report back if it works!
+Profile `a` was tested on an RX 7900 XTX behind a USB bridge, profile `c` on a
+TinyBox RX 7900 XTX over native PCIe.
+
+**NOTE**: Profiles `b` and `d` are built and checked offline but have never run on hardware. If you have a card that matches profile `b` or `d` please report back if it works!
+
+### If your card is natively attached
+
+A card whose PSP dies during the warm boot can hang the **whole host** — no
+kernel log, no MCE, and recovery is a BMC power cycle. Behind a USB bridge the
+same failure only costs the card. Don't run this on a machine you cannot power
+cycle.
 
 ## Rebuilding
 
